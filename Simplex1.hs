@@ -12,12 +12,12 @@ import Prelude hiding ((<>))
 
 simplex :: Matrix R -> Vector R -> Vector R -> Maybe (Vector R)
 
--- | Implementation of the formal Simplex algorithm
+-- | Implementation of the informal Simplex algorithm
 -- Takes a maximization problem in natural form
 simplex a b c = do
   -- highly inefficient !
   -- choose two last elements
-  let active = [fst (size a) - 2, fst (size a) - 1]
+  let active = [fst (size a) - i | i <- [1 .. size c]]
   -- A_active * x = b
   let x = linearSolveLS (a ? active) (asColumn b ? active)
   simplexIt a (flatten x) b c active
@@ -26,7 +26,7 @@ simplex a b c = do
       -- calculate directions
       let e = \i -> tr (ident (fst $ size a) ? [i])
       let ws = [linearSolveLS (a ? active) (-e i ? active) | i <- active] -- which improve the direction ?
-      let costs = [(c <.> flatten w, i) | (w, i) <- ws `zip` [0 .. length ws]] :: [(R, Int)]
+      let costs = [(c <.> flatten w, i) | (w, i) <- ws `zip` [0 .. length ws - 1]] :: [(R, Int)]
       let imprv = filter (\w -> fst w > 0) costs
       -- check if there are improvements, if not -> already optimal
       if null imprv
