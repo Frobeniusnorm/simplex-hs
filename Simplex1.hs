@@ -22,10 +22,10 @@ simplex a b c = do
     simplexIt a x b c active = do
       -- calculate directions
       let e = \i -> tr (ident (fst $ size a) ? [i])
-      let ws = [linearSolveLS (a ? active) (- e i ? active) | i <- active] :: [Matrix R]
-      -- which improve the direction ? 
+      let ws = [linearSolveLS (a ? active) (- e i ? active) | i <- active]      -- which improve the direction ? 
       let costs = [(c <.> flatten w, i) | (w, i) <- ws `zip` [0 .. length ws]] :: [(R, Int)]
       let imprv = filter (\w -> fst w > 0) costs
+      -- check if there are improvements, if not -> already optimal
       if null imprv then
         Just x
       else do
@@ -38,6 +38,7 @@ simplex a b c = do
         -- calculate lowest magnitude we can go in direction w
         let gammas = [(((b ! i) - (((a ? [i]) #> x) ! 0)) / flatten ((a ? [i]) <> w) ! 0, i) | i <- inactive]
         let validg = filter (\g -> fst g > 0) gammas
+        -- check if there are valid gammas (gammas > 0), if not -> unbounded
         if null validg then
           Nothing
         else do
