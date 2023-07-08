@@ -4,7 +4,6 @@ import Numeric.LinearAlgebra
 import Prelude hiding ((<>))
 import Data.List (minimumBy)
 import Data.Function (on)
--- simplex :: Matrix R -> Vector R -> Vector R -> Maybe (Vector R)
 simplex :: Matrix R -> Vector R -> Vector R -> Maybe (Vector R)
 -- | Implementation of the basic version of the Simplex algorithm
 -- Takes a minimization problem in standard form
@@ -13,7 +12,6 @@ simplex a b c = do
   let basis = reverse [snd (size a) - i | i <- [1 .. fst (size a)]]
   let xB = flatten $ pinv (a ?? (All, Pos (idxs basis))) <> asColumn b
   let x = assoc (snd $ size a) 0 (basis `zip` toList xB) :: Vector R
-
   simplexIt a x b c basis
   where
     simplexIt a x b c basis = do
@@ -21,16 +19,13 @@ simplex a b c = do
       let n = [i | i <- [0 .. snd (size a) - 1], i `notElem` basis]
       let aN = a ?? (All, Pos $ idxs n)
       -- btran
-      let invA = pinv aB
       let colc = asColumn c :: Matrix R
       -- basically aB y = cT, to calculate the reduced costs
       let y = flatten $ linearSolveLS (tr aB) (colc ? basis)
       -- pricing (finds delta costs = reduced costs)
       let zn = flatten (colc ? n) - (tr aN #> y)
-      -- check if already optiomal
+      -- check if already optimal
       if all (\z -> z + 1e-9 >= 0) (toList zn) then do
-        -- construct x
-        -- let x = assoc (snd $ size a) 0 (basis `zip` toList xB) :: Vector R
         Just x
       else do
         -- ftran
