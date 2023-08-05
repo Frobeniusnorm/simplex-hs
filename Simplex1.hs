@@ -16,7 +16,7 @@ simplex :: Matrix R -> Vector R -> Vector R -> Maybe (Vector R)
 -- Takes a maximization problem in natural form
 simplex a b c = do
   -- highly inefficient !
-  -- choose two last elements
+  -- choose last elements
   let active = [fst (size a) - i | i <- [1 .. size c]]
   -- A_active * x = b
   let x = linearSolveLS (a ? active) (asColumn b ? active)
