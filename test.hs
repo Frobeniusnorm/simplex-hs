@@ -14,9 +14,6 @@ ex1 = do
   let (a2, b2, c2) = naturalToStandard a b c
   let (a3, b3, c3) = standardToNatural a2 b2 c2
   print $ Simplex2.simplex a2 b2 c2
-  print a
-  print b
-  print c
 
 ex2 = do
   let a = (13 >< 4) [
