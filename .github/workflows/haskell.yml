@@ -11,18 +11,11 @@ permissions:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v3
-    - uses: actions/setup-haskell@v1
-      with:
-        ghc-version: '8.10.3'
-
-    - name: Install dependencies
-      run: |
-        cabal update
-        cabal install --lib hmatrix
-    - name: Run tests
-      run: runhaskell Main.hs examples/example1.txt
+      - uses: actions/checkout@v3
+      - uses: haskell/actions/setup@v2
+        with:
+          ghc-version: '8.8' # Resolves to the latest point release of GHC 8.8
+          cabal-version: '3.0.0.0' # Exact version of Cabal
+      - run: runhaskell Main.hs
