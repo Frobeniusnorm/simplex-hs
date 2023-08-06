@@ -24,7 +24,5 @@ jobs:
       run: |
         cabal update
         cabal install --lib hmatrix
-    - name: Build
-      run: ghc -o simplex -O3 Main.hs
     - name: Run tests
-      run: ./simplex examples/example1.txt
+      run: runhaskell Main.hs examples/example1.txt
