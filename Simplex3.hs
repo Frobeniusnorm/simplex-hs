@@ -1,13 +1,36 @@
 module Simplex3 where
+
+import Data.Function (on)
+import Data.List (maximumBy, minimumBy)
 import Numeric.LinearAlgebra
 import Prelude hiding ((<>))
-import Data.List (minimumBy)
-import Data.Function (on)
-simplex :: Matrix R -> Vector R -> Vector R -> Maybe (Vector R)
+
+-- a -> z -> N -> j
+type PricingFct = Matrix R -> Vector R -> [Int] -> Int
+
+type RatioTestFct = Matrix R -> Vector R -> Vector R -> [Int] -> (Double, Int)
+
+dantzigPricing :: PricingFct
+dantzigPricing a z n = do
+  -- simpler as it looks: we need the actual index, but only have zn, so we have to zip the indices in n with actual indices to index zn, but want the index in n
+  let indexedZ = zipWith (\i j -> (z ! i, j)) [0 .. (snd (size a) - fst (size a) - 1)] n
+  snd $ minimumBy (compare `on` fst) (filter (\zj -> fst zj < 0) indexedZ)
+
+dantzigRatioTest :: RatioTestFct
+dantzigRatioTest a xB w b = do
+  let basisInd = [0 .. (fst (size a) - 1)]
+  let gammas = [(w ! i, (xB ! i) / (w ! i), i) | i <- basisInd, w ! i > 0]
+  let (_, g, i) = maximumBy (compare `on` (\(v, _, _) -> v)) gammas
+  (g, i)
+
+dantzig = (dantzigPricing, dantzigRatioTest)
+
+simplex :: (PricingFct, RatioTestFct) -> Matrix R -> Vector R -> Vector R -> Maybe (Vector R)
+
 -- | Modular Implementation of the basic version of the Simplex algorithm
 -- Takes a minimization problem in standard form
 -- Customizable pricing methods
-simplex a b c = do
+simplex (pricing, ratio) a b c = do
   -- last variables
   let basis = reverse [snd (size a) - i | i <- [1 .. fst (size a)]]
   let xB = flatten $ pinv (a ?? (All, Pos (idxs basis))) <> asColumn b
@@ -25,26 +48,29 @@ simplex a b c = do
       -- pricing (finds delta costs = reduced costs)
       let zn = flatten (colc ? n) - (tr aN #> y)
       -- check if already optimal
-      if all (\z -> z + 1e-9 >= 0) (toList zn) then do
-        Just x
-      else do
-        -- ftran
-        -- simpler as it looks: we need the actual index, but only have zn, so we have to zip the indices in n with actual indices to index zn, but want the index in n
-        let j = snd $ head $ filter (\zj -> fst zj < 0) (zipWith (\i j -> (zn ! i, j)) [0 .. (snd (size a) - fst (size a) - 1)] n)
-        let w = flatten $ linearSolveLS aB (a ?? (All, Pos $ idxs [j]))
-        -- ratio-test
-        if all (\f -> f - 1e-9 <= 0) (toList w) then
-          Nothing
+      if all (\z -> z + 1e-9 >= 0) (toList zn)
+        then do
+          Just x
         else do
-          let basisInd = [0 .. (fst (size a) - 1)]
-          let xB = flatten (asColumn x ? basis)
-          -- calculate all gammas (we need to check the ws which are already indexed to the basis, as well as xB) with their respective index relative to the basis
-          let gammas = [((xB ! i) / (w ! i), i) | i <- basisInd, w ! i > 0]
-          -- find minimum and its index in the basis
-          let (gamma, il) = minimumBy (compare `on` fst) gammas
-          -- update x and basis
-          let xB' = xB - scale gamma w
-          -- update index il (basis index) in basis with j (absolute index)
-          let basis' = zipWith (\b k -> (if k == il then j else b)) basis basisInd
-          let x' = assoc (size x) 0 ((j, gamma):(basis `zip` toList xB'))
-          simplexIt a x' b c basis'
+          let j = pricing a zn n
+          -- ftran
+          let w = flatten $ linearSolveLS aB (a ?? (All, Pos $ idxs [j]))
+          -- ratio-test
+          if all (\f -> f - 1e-9 <= 0) (toList w)
+            then Nothing
+            else do
+              let basisInd = [0 .. (fst (size a) - 1)]
+              let xB = flatten (asColumn x ? basis)
+              -- calculate all gammas (we need to check the ws which are already indexed to the basis, as well as xB) with their respective index relative to the basis
+              let gammas = [((xB ! i) / (w ! i), i) | i <- basisInd, w ! i > 0]
+              -- find minimum and its index in the basis
+              let (gamma, il) = minimumBy (compare `on` fst) gammas
+              -- update x and basis
+              let xB' = xB - scale gamma w
+              -- update index il (basis index) in basis with j (absolute index)
+              let basis' = zipWith (\b k -> (if k == il then j else b)) basis basisInd
+              let x' = assoc (size x) 0 ((j, gamma) : (basis `zip` toList xB'))
+              simplexIt a x' b c basis'
+
+
+dantzigSimplex = simplex dantzig

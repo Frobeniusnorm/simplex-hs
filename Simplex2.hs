@@ -28,9 +28,9 @@ simplex a b c = do
       if all (\z -> z + 1e-9 >= 0) (toList zn) then do
         Just x
       else do
-        -- ftran
         -- simpler as it looks: we need the actual index, but only have zn, so we have to zip the indices in n with actual indices to index zn, but want the index in n
         let j = snd $ head $ filter (\zj -> fst zj < 0) (zipWith (\i j -> (zn ! i, j)) [0 .. (snd (size a) - fst (size a) - 1)] n)
+        -- ftran
         let w = flatten $ linearSolveLS aB (a ?? (All, Pos $ idxs [j]))
         -- ratio-test
         if all (\f -> f - 1e-9 <= 0) (toList w) then
