@@ -1,0 +1,30 @@
+name: Haskell CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-haskell@v1
+      with:
+        ghc-version: '8.10.3'
+
+    - name: Install dependencies
+      run: |
+        cabal update
+        cabal install --lib hmatrix
+    - name: Build
+      run: ghc -o simplex -O3 Main.hs
+    - name: Run tests
+      run: ./simplex examples/example1.txt
