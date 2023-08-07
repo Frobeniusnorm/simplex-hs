@@ -3,7 +3,7 @@
 import Control.Monad.Trans.State
 import Data.Char
 import Debug.Trace
-import Helper (naturalToStandard, standardToNatural)
+import Helper (naturalToStandard, standardToNatural, includeBounds, removeBounds)
 import Numeric.LinearAlgebra
 import Simplex (SimplexResult (SimplexResult, SimplexUnbounded))
 import Simplex1 (simplex)
@@ -12,33 +12,35 @@ import Simplex3 (blandSimplex, dantzigSimplex)
 import System.Directory.Internal.Prelude (getArgs, toLower)
 
 data ProblemType = Standard | Natural deriving (Show, Eq)
-
-type Problem = (ProblemType, Matrix R, Vector R, Vector R)
+-- type, A, b, c, lower, upper
+type Problem = (ProblemType, Matrix R, Vector R, Vector R, Vector R, Vector R)
 
 type ParseError = [Char]
 
 termMode mode rd prob rowcount = do
-  let (probtype, a, b, c) = prob
+  let (probtype, a, b, c, l, u) = prob
   case mode of
-    'a' -> (probtype, matrix (if rowcount < 0 then -rowcount else rowcount) (reverse rd), b, c)
-    'b' -> (probtype, a, vector (reverse rd), c)
-    'c' -> (probtype, a, b, vector (reverse rd))
+    'a' -> (probtype, matrix (if rowcount < 0 then -rowcount else rowcount) (reverse rd), b, c, l, u)
+    'b' -> (probtype, a, vector (reverse rd), c, l, u)
+    'c' -> (probtype, a, b, vector (reverse rd), l, u)
+    'l' -> (probtype, a, b, c, vector (reverse rd), u)
+    'u' -> (probtype, a, b, c, l, vector (reverse rd))
     _ -> prob
 
 parseProblem :: Either (String, Char, Problem, [Double], Int) ParseError -> Either (String, Char, Problem, [Double], Int) ParseError
 parseProblem (Left ('f' : 'o' : 'r' : 'm' : ':' : t, mode, prob, rd, count)) = do
-  let np@(_, a, b, c) = termMode mode rd prob count
+  let np@(_, a, b, c, l, u) = termMode mode rd prob count
   let probtype = [toLower x | x <- takeWhile (/= '\n') t, x `notElem` [' ', '\t']]
   case probtype of
-    "standard" -> Left (t, '0', (Standard, a, b, c), [], 0)
-    "natural" -> Left (t, '0', (Natural, a, b, c), [], 0)
+    "standard" -> Left (t, '0', (Standard, a, b, c, l, u), [], 0)
+    "natural" -> Left (t, '0', (Natural, a, b, c, l, u), [], 0)
     _ -> Left (t, mode, np, rd, count)
 parseProblem (Left (m : ':' : t, mode, prob, rd, count)) = do
-  let np@(r, a, b, c) = termMode mode rd prob count
-  Left (t, m, (r, a, b, c), [], 0)
+  let np@(r, a, b, c, l, u) = termMode mode rd prob count
+  Left (t, m, np, [], 0)
 parseProblem (Left ([], mode, prob, rd, count)) = do
-  let np@(r, a, b, c) = termMode mode rd prob count
-  Left ([], mode, (r, a, b, c), [], 0)
+  let np@(r, a, b, c, l, u) = termMode mode rd prob count
+  Left ([], mode, np, [], 0)
 parseProblem (Left (t, mode, prob, rd, count)) = do
   let nostr = takeWhile (\x -> isDigit x || x == '.' || x == '-') t
   let nextt = dropWhile (\x -> isDigit x || x == '.' || x == '-') t
@@ -48,7 +50,7 @@ parseProblem (Left (t, mode, prob, rd, count)) = do
 parseProblem (Right err) = Right err
 
 readProblem s = do
-  let foo = Left (s, '0', (Standard, matrix 1 [1], vector [1], vector [1]), [], 0) : map parseProblem foo
+  let foo = Left (s, '0', (Standard, matrix 0 [], vector [], vector [], vector [], vector []), [], 0) : map parseProblem foo
   case dropWhile (\case Left (x, _, _, _, _) -> not (null x); Right err -> False) foo !! 1 of
     Left res -> do
       let (_, _, r, _, _) = res
@@ -74,22 +76,26 @@ main = do
           let simplexfcts = filter (\x -> fst x `elem` args) (opt `zip` fct)
           let (version, simplexfct) = if not (null simplexfcts) then head simplexfcts else ("-vdantzig", dantzigSimplex)
 
-          p@(t, a, b, c) <-
+          p@(t, a, b, c, l, u) <-
             if "-c" `elem` args
               then return $ readProblem (head (filter (\x -> head x /= '-') args))
               else do
                 s <- readFile (head (filter (\x -> head x /= '-') args))
                 return (readProblem s)
-          putStrLn ("Solving " ++ show t ++ " problem (with simplex implementation " ++ drop 1 version ++ "):\na = " ++ show a ++ ",\nb = " ++ show b ++ ",\nc = " ++ show c)
+          putStrLn ("Solving " ++ show t ++ " problem (with simplex implementation " ++ drop 1 version ++ "):\na = " ++ show a ++ ",\nb = " ++ show b ++ ",\nc = " ++ show c ++ "\nbounds: " ++ show l ++ " <= x <= " ++ show u)
+          let (ba, bb) = if size l > 0 then includeBounds a b l u else (a, b)
+          putStrLn ("b with bounds: " ++ show bb)
           let (na, nb, nc)
-                | version == "-v1" = if t == Natural then (a, b, c) else standardToNatural a b c
-                | t == Standard = (a, b, c)
-                | otherwise = naturalToStandard a b c
+                | version == "-v1" = if t == Natural then (ba, bb, c) else standardToNatural ba bb c
+                | t == Standard = (ba, bb, c)
+                | otherwise = naturalToStandard ba bb c
           let smplx = simplexfct na nb nc
           case smplx of
             SimplexResult nx basis iterations -> do
+              let ax = if size l > 0 then removeBounds a b nx l u else nx
+              print ax
               let cost = do
-                    let costv = nc <.> nx
+                    let costv = nc <.> ax
                     if version == "-v1" && t == Standard || t == Natural then -costv else costv
-              putStrLn ("Solution with cost = " ++ show cost ++ ",\nx = " ++ show (subVector 0 (size c) nx) ++ " (Calculation took " ++ show iterations ++ " iterations)")
+              putStrLn ("Solution with cost = " ++ show cost ++ ",\nx = " ++ show (subVector 0 (size c) ax) ++ " (Calculation took " ++ show iterations ++ " iterations)")
             SimplexUnbounded -> putStrLn "Unbounded"

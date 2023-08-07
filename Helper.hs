@@ -19,3 +19,11 @@ standardToNatural a b c = do
   -- every a^T x = b becomes: a^T x <= b and a^T x <= -b, we need to ensure non negativity with the identity
   (fromBlocks [[a], [a], [-ident (snd $ size a)]], vjoin [b, -b, konst 0 (snd $ size a)], -c)
 
+-- currently only lower bounds:
+includeBounds :: Matrix R -> Vector R -> Vector R -> Vector R -> (Matrix R, Vector R)
+includeBounds a b l u =  
+  (a, b - a #> l)
+
+
+removeBounds :: Matrix R -> Vector R -> Vector R -> Vector R -> Vector R -> Vector R
+removeBounds a b x l u = x + vjoin [l, konst 0 (size x - size l)]

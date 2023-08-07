@@ -40,5 +40,4 @@ blandRatioTest a xB w b = do
   fst $ minimumBy (compare `on` snd) (all_minimum `zip` b)
 
 bland = (blandPricing, blandRatioTest)
-
   
