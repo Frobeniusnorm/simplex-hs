@@ -5,9 +5,10 @@ import Data.Char
 import Debug.Trace
 import Helper (naturalToStandard, standardToNatural)
 import Numeric.LinearAlgebra
+import Simplex (SimplexResult (SimplexResult, SimplexUnbounded))
 import Simplex1 (simplex)
 import Simplex2 (simplex)
-import Simplex3 (dantzigSimplex)
+import Simplex3 (blandSimplex, dantzigSimplex)
 import System.Directory.Internal.Prelude (getArgs, toLower)
 
 data ProblemType = Standard | Natural deriving (Show, Eq)
@@ -58,10 +59,15 @@ readProblem s = do
 main = do
   args <- getArgs
   if null args
-    then putStrLn "Usage: ./simplex [-c] [-v1 | -v2 | -vdantzig] [file path | problem description (if -c flag present)]"
+    then do
+      putStrLn "Usage: ./simplex [-c] [-v1 | -v2 | -vdantzig | ...] [file path | problem description]"
+      putStrLn "if -c is set, it is expected that the only non-flag argument is the problem description in text form. Else a file path is expected to a file containting the description.\nVersions include:"
+      putStrLn " -v1: Informal version"
+      putStrLn " -v2: Basic version"
+      putStrLn " -vdantzig | -vbland: Basic version with different pricing and ratio test techniques"
     else do
-      let opt = ["-v1", "-v2", "-vdantzig"]
-      let fct = [Simplex1.simplex, Simplex2.simplex, Simplex3.dantzigSimplex]
+      let opt = ["-v1", "-v2", "-vdantzig", "-vbland"]
+      let fct = [Simplex1.simplex, Simplex2.simplex, Simplex3.dantzigSimplex, Simplex3.blandSimplex]
       if sum (map (\x -> if x `elem` args then 1 else 0) opt) > 1
         then putStrLn "Only one simplex version at a time possible!"
         else do
@@ -81,7 +87,9 @@ main = do
                 | otherwise = naturalToStandard a b c
           let smplx = simplexfct na nb nc
           case smplx of
-            Just nx -> do
-              let cost = nc <.> nx
-              putStrLn ("Solution with cost = " ++ show cost ++ ",\nx = " ++ show (subVector 0 (size c) nx))
-            Nothing -> putStrLn "No solution"
+            SimplexResult nx basis iterations -> do
+              let cost = do
+                    let costv = nc <.> nx
+                    if version == "-v1" && t == Standard || t == Natural then -costv else costv
+              putStrLn ("Solution with cost = " ++ show cost ++ ",\nx = " ++ show (subVector 0 (size c) nx) ++ " (Calculation took " ++ show iterations ++ " iterations)")
+            SimplexUnbounded -> putStrLn "Unbounded"

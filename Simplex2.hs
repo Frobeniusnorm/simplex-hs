@@ -4,7 +4,8 @@ import Numeric.LinearAlgebra
 import Prelude hiding ((<>))
 import Data.List (minimumBy)
 import Data.Function (on)
-simplex :: Matrix R -> Vector R -> Vector R -> Maybe (Vector R)
+import Simplex
+simplex :: Matrix R -> Vector R -> Vector R -> SimplexResult
 -- | Implementation of the basic version of the Simplex algorithm
 -- Takes a minimization problem in standard form
 simplex a b c = do
@@ -12,9 +13,9 @@ simplex a b c = do
   let basis = reverse [snd (size a) - i | i <- [1 .. fst (size a)]]
   let xB = flatten $ pinv (a ?? (All, Pos (idxs basis))) <> asColumn b
   let x = assoc (snd $ size a) 0 (basis `zip` toList xB) :: Vector R
-  simplexIt a x b c basis
+  simplexIt a x b c basis 0
   where
-    simplexIt a x b c basis = do
+    simplexIt a x b c basis it = do
       let aB = a ?? (All, Pos $ idxs basis)
       let n = [i | i <- [0 .. snd (size a) - 1], i `notElem` basis]
       let aN = a ?? (All, Pos $ idxs n)
@@ -26,7 +27,7 @@ simplex a b c = do
       let zn = flatten (colc ? n) - (tr aN #> y)
       -- check if already optimal
       if all (\z -> z + 1e-9 >= 0) (toList zn) then do
-        Just x
+        SimplexResult x basis it
       else do
         -- simpler as it looks: we need the actual index, but only have zn, so we have to zip the indices in n with actual indices to index zn, but want the index in n
         let j = snd $ head $ filter (\zj -> fst zj < 0) (zipWith (\i j -> (zn ! i, j)) [0 .. (snd (size a) - fst (size a) - 1)] n)
@@ -34,7 +35,7 @@ simplex a b c = do
         let w = flatten $ linearSolveLS aB (a ?? (All, Pos $ idxs [j]))
         -- ratio-test
         if all (\f -> f - 1e-9 <= 0) (toList w) then
-          Nothing
+          SimplexUnbounded
         else do
           let basisInd = [0 .. (fst (size a) - 1)]
           let xB = flatten (asColumn x ? basis)
@@ -47,6 +48,6 @@ simplex a b c = do
           -- update index il (basis index) in basis with j (absolute index)
           let basis' = zipWith (\b k -> (if k == il then j else b)) basis basisInd
           let x' = assoc (size x) 0 ((j, gamma):(basis `zip` toList xB'))
-          simplexIt a x' b c basis'
+          simplexIt a x' b c basis' (it + 1)
 
 

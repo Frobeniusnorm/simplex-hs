@@ -5,7 +5,7 @@ Simple implementations of various variants of the simplex algorithm in Haskell w
 
 - Version 1 (`Simplex1.hs`) implements the informal version of the Simplex algorithm
 - Version 2 (`Simplex2.hs`) implements the basic version of the Simplex algorithm without any optimizations
-- Version 3 (`Simplex3.hs`) implements a extensible version for different pricing and ratio test methods on top of the second version
+- Version 3 (`Simplex3.hs`) implements a extensible version for different pricing and ratio test methods on top of the second version (several methods are implemented on `Selection.hs`)
 
 The Main class allows passing of problem descriptions or files containing such. Examples can be found in `/examples`.
 

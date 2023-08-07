@@ -9,8 +9,9 @@ import Data.List (minimumBy)
 import Debug.Trace (trace)
 import Numeric.LinearAlgebra
 import Prelude hiding ((<>))
+import Simplex
 
-simplex :: Matrix R -> Vector R -> Vector R -> Maybe (Vector R)
+simplex :: Matrix R -> Vector R -> Vector R -> SimplexResult 
 
 -- | Implementation of the informal Simplex algorithm
 -- Takes a maximization problem in natural form
@@ -20,9 +21,9 @@ simplex a b c = do
   let active = [fst (size a) - i | i <- [1 .. size c]]
   -- A_active * x = b
   let x = linearSolveLS (a ? active) (asColumn b ? active)
-  simplexIt a (flatten x) b c active
+  simplexIt a (flatten x) b c active 0
   where
-    simplexIt a x b c active = do
+    simplexIt a x b c active it = do
       -- calculate directions
       let e = \i -> tr (ident (fst $ size a) ? [i])
       let ws = [linearSolveLS (a ? active) (-e i ? active) | i <- active] -- which improve the direction ?
@@ -30,7 +31,7 @@ simplex a b c = do
       let imprv = filter (\w -> fst w > 0) costs
       -- check if there are improvements, if not -> already optimal
       if null imprv
-        then Just x
+        then SimplexResult x active it
         else do
           -- choose j and w as the first improvement cost
           let (_, wi) = head imprv
@@ -43,8 +44,8 @@ simplex a b c = do
           let validg = filter (\g -> fst g > 0) gammas
           -- check if there are valid gammas (gammas > 0), if not -> unbounded
           if null validg
-            then Nothing
+            then SimplexUnbounded
             else do
               let (gamma, k) = minimumBy (compare `on` fst) validg
               -- move along w with amount gamma, j leaves the basis, k enters it
-              simplexIt a (x + (flatten w * realToFrac gamma)) b c (k : filter (/= j) active)
+              simplexIt a (x + (flatten w * realToFrac gamma)) b c (k : filter (/= j) active) (it + 1)
